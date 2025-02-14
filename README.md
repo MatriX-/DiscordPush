@@ -1,104 +1,94 @@
-# DiscordPush
+# Discord Prize Monitor
 
-A Python script that monitors specific Discord channels and forwards messages to your iPhone through Pushover notifications. Perfect for keeping track of important messages without staying glued to Discord.
+A web application for monitoring Discord channels and receiving notifications via Pushover. This application allows you to track messages from specific users in designated channels and receive instant notifications when they post content matching your configured filters.
 
 ## Features
 
-- 📱 Real-time push notifications for Discord messages
-- 🎯 Monitor specific channels and users
-- 📎 Support for attachments and embeds
-- 🔔 Different notification priorities and sounds
-- 🔄 Automatic reconnection handling
-- 📊 Console logging for monitoring
+- **Web-Based Configuration**: Easily manage monitored channels, users, and notification settings through a web interface
+- **Customizable Filters**: Set up filters for keywords, links, and image types
+- **Real-Time Notifications**: Receive instant Pushover notifications for matching messages
+- **Message Dashboard**: View recent message history and monitor filter effectiveness
+- **Flexible Notification Settings**: Configure notification priorities and sounds
 
-## Prerequisites
-
-- Python 3.7+
-- A Discord account
-- Pushover account and iOS app
-
-## Installation
+## Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/DiscordPush.git
-cd DiscordPush
+git clone https://github.com/yourusername/discord_prize.git
+cd discord_prize
 ```
 
 2. Install dependencies:
 ```bash
+cd backend
 pip install -r requirements.txt
 ```
 
-3. Copy `.env.template` to `.env` and fill in your credentials:
-```bash
-cp .env.template .env
+3. Create a `.env` file in the root directory with your configuration:
+```env
+DISCORD_TOKEN=your_discord_bot_token
+CHANNEL_IDS=channel_id1,channel_id2
+TARGET_USER_IDS=user_id1,user_id2
+PUSHOVER_USER_KEY=your_pushover_user_key
+PUSHOVER_API_TOKEN=your_pushover_api_token
 ```
+
+4. Start the application:
+```bash
+uvicorn app.main:app --host=0.0.0.0 --port=7777
+```
+
+## API Endpoints
+
+The application provides the following API endpoints:
+
+- `GET /api/status`: Get Discord client connection status
+- `GET /api/messages`: Get recent message history
+- `GET /api/config`: Get current configuration
+- `PUT /api/config/filters`: Update filter configuration
+- `PUT /api/config/notifications`: Update notification settings
+- `PUT /api/config/channels`: Update monitored channels
+- `PUT /api/config/users`: Update target users
 
 ## Configuration
 
-Edit `.env` with your details:
+### Discord Setup
+1. Create a Discord application at https://discord.com/developers/applications
+2. Create a bot and get its token
+3. Add the bot to your server with appropriate permissions
 
-```env
-# Discord configuration
-DISCORD_TOKEN=your_discord_token_here
-CHANNEL_ID=your_channel_id_here
-TARGET_USER_ID=target_user_id_here
+### Pushover Setup
+1. Create a Pushover account at https://pushover.net
+2. Create an application to get an API token
+3. Get your user key from your account
 
-# Pushover configuration
-PUSHOVER_USER_KEY=your_pushover_user_key_here
-PUSHOVER_API_TOKEN=your_pushover_api_token_here
+## Development
+
+The project is structured as follows:
+
+```
+discord_prize/
+├── backend/
+│   ├── app/
+│   │   ├── discord/     # Discord client implementation
+│   │   ├── models/      # Data models and configuration
+│   │   ├── routers/     # API endpoints
+│   │   ├── services/    # External services (Pushover)
+│   │   └── main.py      # Application entry point
+│   └── requirements.txt
+├── .replit              # Replit configuration
+├── replit.nix          # Replit Nix configuration
+└── README.md
 ```
 
-### Getting the Required Values
+## Contributing
 
-1. Discord Token:
-   - Open Discord in your web browser
-   - Press F12 to open Developer Tools
-   - Go to Network tab
-   - Look for requests to discord.com
-   - Find the "authorization" header in the request headers
-
-2. Channel ID:
-   - Enable Developer Mode in Discord Settings
-   - Right-click the channel
-   - Click "Copy ID"
-
-3. User ID:
-   - Enable Developer Mode in Discord Settings
-   - Right-click the user
-   - Click "Copy ID"
-
-4. Pushover Credentials:
-   - Create account at [pushover.net](https://pushover.net)
-   - Get your User Key from the dashboard
-   - Create a new application to get the API Token
-
-## Usage
-
-Run the script:
-```bash
-python discord_monitor.py
-```
-
-The script will:
-1. Connect to Discord
-2. Monitor the specified channel
-3. Send push notifications for new messages from the target user
-4. Display status in the console
-
-## Notification Types
-
-- **New Messages**: High priority with "cosmic" sound
-- **Status Updates**: Normal priority with default sound
-- **Errors**: High priority with "falling" sound
-
-## Security Note
-
-⚠️ **Important**: This script uses a user account token which may violate Discord's Terms of Service. Use at your own risk.
-
-Keep your Discord token and Pushover credentials secure. Never share them or commit them to version control.
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-MIT License - See LICENSE file for details 
+This project is licensed under the MIT License - see the LICENSE file for details. 
