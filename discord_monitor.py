@@ -115,11 +115,12 @@ class MessageMonitor(discord.Client):
                 # Only proceed if message contains prizepicks links or media
                 if has_prize_links or has_attachments or has_embeds:
                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    console_msg = f"\n[{timestamp}] #{message.channel.name} - {message.author.name}: {message.content}"
+                    user_identifier = f"{message.author.display_name} (@{message.author.name})"
+                    console_msg = f"\n[{timestamp}] #{message.channel.name} - {user_identifier}: {message.content}"
                     print(console_msg)
                     
                     # Prepare notification message
-                    push_msg = f"{message.author.name}: {message.content}"
+                    push_msg = f"{user_identifier}: {message.content}"
                     
                     # Collect image URLs from attachments
                     image_urls = []
