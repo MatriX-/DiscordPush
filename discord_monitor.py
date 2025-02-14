@@ -11,19 +11,19 @@ load_dotenv()
 
 # Get configuration from environment variables
 TOKEN = os.getenv('DISCORD_TOKEN')
-CHANNEL_ID = int(os.getenv('CHANNEL_ID', 0))
-TARGET_USER_ID = int(os.getenv('TARGET_USER_ID', 0))
+CHANNEL_IDS = [int(id.strip()) for id in os.getenv('CHANNEL_IDS', '').split(',') if id.strip()]
+TARGET_USER_IDS = [int(id.strip()) for id in os.getenv('TARGET_USER_IDS', '').split(',') if id.strip()]
 PUSHOVER_USER_KEY = os.getenv('PUSHOVER_USER_KEY')
 PUSHOVER_API_TOKEN = os.getenv('PUSHOVER_API_TOKEN')
 
 # Validate configuration
-if not all([TOKEN, CHANNEL_ID, TARGET_USER_ID, PUSHOVER_USER_KEY, PUSHOVER_API_TOKEN]):
+if not all([TOKEN, CHANNEL_IDS, TARGET_USER_IDS, PUSHOVER_USER_KEY, PUSHOVER_API_TOKEN]):
     print("Error: Please set all required environment variables in .env file")
-    print("Required variables: DISCORD_TOKEN, CHANNEL_ID, TARGET_USER_ID, PUSHOVER_USER_KEY, PUSHOVER_API_TOKEN")
+    print("Required variables: DISCORD_TOKEN, CHANNEL_IDS, TARGET_USER_IDS, PUSHOVER_USER_KEY, PUSHOVER_API_TOKEN")
     sys.exit(1)
 
-def send_pushover_notification(message, title=None, priority=0, sound="pushover"):
-    """Send a notification via Pushover."""
+def send_pushover_notification(message, title=None, priority=0, sound="pushover", image_urls=None):
+    """Send a notification via Pushover with optional image attachments."""
     try:
         data = {
             "token": PUSHOVER_API_TOKEN,
@@ -35,37 +35,67 @@ def send_pushover_notification(message, title=None, priority=0, sound="pushover"
         if title:
             data["title"] = title
             
-        r = requests.post("https://api.pushover.net/1/messages.json", data=data)
-        if r.status_code != 200:
-            print(f"Error sending notification: {r.text}")
+        # If we have image URLs, send a notification for each image
+        if image_urls:
+            for image_url in image_urls:
+                try:
+                    # Download the image
+                    image_response = requests.get(image_url)
+                    if image_response.status_code == 200:
+                        # Create a copy of the data for this image
+                        image_data = data.copy()
+                        files = {'attachment': ('image.jpg', image_response.content)}
+                        
+                        # Send notification with image
+                        r = requests.post("https://api.pushover.net/1/messages.json", 
+                                        data=image_data, 
+                                        files=files)
+                        if r.status_code != 200:
+                            print(f"Error sending image notification: {r.text}")
+                    else:
+                        print(f"Failed to download image: {image_url}")
+                except Exception as e:
+                    print(f"Error processing image {image_url}: {e}")
+        else:
+            # Only send a text message if there are no images
+            r = requests.post("https://api.pushover.net/1/messages.json", data=data)
+            if r.status_code != 200:
+                print(f"Error sending notification: {r.text}")
     except Exception as e:
         print(f"Error sending notification: {e}")
 
 class MessageMonitor(discord.Client):
     def __init__(self):
         super().__init__()
-        self.target_channel = None
+        self.target_channels = {}
         self.connected = False
 
     async def on_ready(self):
         """Called when the client is ready and connected to Discord."""
         print(f'Connected as {self.user} (ID: {self.user.id})')
         
-        # Get the target channel
-        self.target_channel = self.get_channel(CHANNEL_ID)
-        if not self.target_channel:
-            print(f"Error: Could not find channel with ID {CHANNEL_ID}")
+        # Get all target channels
+        for channel_id in CHANNEL_IDS:
+            channel = self.get_channel(channel_id)
+            if channel:
+                self.target_channels[channel_id] = channel
+                print(f"Monitoring channel: #{channel.name}")
+            else:
+                print(f"Warning: Could not find channel with ID {channel_id}")
+
+        if not self.target_channels:
+            print("Error: Could not find any of the specified channels")
             await self.close()
             return
 
-        print(f"Monitoring channel: #{self.target_channel.name}")
-        print(f"Filtering messages from user ID: {TARGET_USER_ID}")
+        print(f"Filtering messages from user IDs: {', '.join(map(str, TARGET_USER_IDS))}")
         print("Waiting for messages...")
         self.connected = True
 
         # Send a test notification
+        channels_str = ", ".join(f"#{channel.name}" for channel in self.target_channels.values())
         send_pushover_notification(
-            "Discord monitor started successfully!",
+            f"Discord monitor started successfully!\nMonitoring channels: {channels_str}",
             title="Discord Monitor",
             priority=0
         )
@@ -73,42 +103,55 @@ class MessageMonitor(discord.Client):
     async def on_message(self, message):
         """Called when a message is sent in any visible channel."""
         try:
-            # Check if message is in target channel and from target user
-            if (message.channel.id == CHANNEL_ID and 
-                message.author.id == TARGET_USER_ID):
+            # Check if message is in any target channel and from any target user
+            if (message.channel.id in self.target_channels and 
+                message.author.id in TARGET_USER_IDS):
                 
-                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                console_msg = f"\n[{timestamp}] {message.author.name}: {message.content}"
-                print(console_msg)
+                # Check if message contains prizepicks links, attachments, or embeds
+                has_prize_links = any('prizepicks.onelink.me' in word for word in message.content.split())
+                has_attachments = bool(message.attachments)
+                has_embeds = bool(message.embeds)
                 
-                # Prepare notification message
-                push_msg = f"{message.author.name}: {message.content}"
-                
-                # Add attachments to notification if any
-                if message.attachments:
-                    attachments_text = "\n".join(f"📎 {a.url}" for a in message.attachments)
-                    console_msg += f"\n{attachments_text}"
-                    push_msg += f"\n{attachments_text}"
-                    print(attachments_text)
-                
-                # Add embeds to notification if any
-                if message.embeds:
-                    for embed in message.embeds:
-                        if embed.title:
-                            embed_text = f"\n📌 {embed.title}"
-                            if embed.description:
-                                embed_text += f": {embed.description}"
-                            console_msg += embed_text
-                            push_msg += embed_text
-                            print(embed_text)
-                
-                # Send push notification
-                send_pushover_notification(
-                    push_msg,
-                    title=f"Discord: #{self.target_channel.name}",
-                    priority=1,  # High priority for immediate delivery
-                    sound="cosmic"  # Use a distinctive notification sound
-                )
+                # Only proceed if message contains prizepicks links or media
+                if has_prize_links or has_attachments or has_embeds:
+                    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    console_msg = f"\n[{timestamp}] #{message.channel.name} - {message.author.name}: {message.content}"
+                    print(console_msg)
+                    
+                    # Prepare notification message
+                    push_msg = f"{message.author.name}: {message.content}"
+                    
+                    # Collect image URLs from attachments
+                    image_urls = []
+                    if has_attachments:
+                        for attachment in message.attachments:
+                            if any(attachment.filename.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif']):
+                                image_urls.append(attachment.url)
+                            else:
+                                # Non-image attachments are added as links to the message
+                                push_msg += f"\n📎 {attachment.url}"
+                    
+                    # Add embeds to notification if any
+                    if has_embeds:
+                        for embed in message.embeds:
+                            if embed.title:
+                                embed_text = f"\n📌 {embed.title}"
+                                if embed.description:
+                                    embed_text += f": {embed.description}"
+                                push_msg += embed_text
+                                
+                            # Check for image in embed
+                            if embed.image:
+                                image_urls.append(embed.image.url)
+                    
+                    # Send push notification with any images
+                    send_pushover_notification(
+                        push_msg,
+                        title=f"Discord: #{message.channel.name}",
+                        priority=1,  # High priority for immediate delivery
+                        sound="cosmic",  # Use a distinctive notification sound
+                        image_urls=image_urls if image_urls else None
+                    )
         
         except Exception as e:
             print(f"Error processing message: {e}")
