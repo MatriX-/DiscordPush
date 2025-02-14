@@ -79,7 +79,7 @@ class MessageMonitor(discord.Client):
             channel = self.get_channel(channel_id)
             if channel:
                 self.target_channels[channel_id] = channel
-                print(f"Monitoring channel: {channel.guild.name}/#{channel.name}")
+                print(f"Monitoring channel: {channel.guild.name} - #{channel.name}")
             else:
                 print(f"Warning: Could not find channel with ID {channel_id}")
 
@@ -93,7 +93,7 @@ class MessageMonitor(discord.Client):
         self.connected = True
 
         # Send a test notification
-        channels_str = ", ".join(f"{channel.guild.name}/#{channel.name}" for channel in self.target_channels.values())
+        channels_str = ", ".join(f"{channel.guild.name} - #{channel.name}" for channel in self.target_channels.values())
         send_pushover_notification(
             f"Discord monitor started successfully!\nMonitoring channels: {channels_str}",
             title="Discord Monitor",
@@ -116,7 +116,7 @@ class MessageMonitor(discord.Client):
                 if has_prize_links or has_attachments or has_embeds:
                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     user_identifier = f"{message.author.display_name} (@{message.author.name})"
-                    channel_identifier = f"{message.guild.name}/#{message.channel.name}"
+                    channel_identifier = f"{message.guild.name} - #{message.channel.name}"
                     console_msg = f"\n[{timestamp}] {channel_identifier} - {user_identifier}: {message.content}"
                     print(console_msg)
                     
